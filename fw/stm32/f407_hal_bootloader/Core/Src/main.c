@@ -18,7 +18,6 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "cmsis_os.h"
 #include "can.h"
 #include "dma.h"
 #include "usart.h"
@@ -51,7 +50,6 @@ SharedData sharedData;
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -99,23 +97,41 @@ int main(void)
   /* USER CODE BEGIN 2 */
   /* USER CODE END 2 */
 
-  /* Call init function for freertos objects (in cmsis_os2.c) */
-  MX_FREERTOS_Init();
-
-  /* Start scheduler */
-  osKernelStart();
-
-  /* We should never get here as control is now taken by the scheduler */
-
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  uint32_t countToStart = 0;
   while (1)
   {
-    /* USER CODE END WHILE */
+      if (countToStart > 500 && !gIsErased && !gIsCorrupted)
+      {
+          if (Flash_CheckFwPresented() == FLASH_OK)
+          {
+              char pStrFromMem[256] = { 0 };
+              if (Flash_ReadStringFromMem(pStrFromMem, sizeof(pStrFromMem), (FLASH_CRC_START_ADDR - FLASH_USER_START_ADDR)) == FLASH_OK)
+              {
+                  if (Flash_ProcessAppCrc(FLASH_TIMESTAMP_PAGE, (uint16_t*) pStrFromMem, FLASH_VERIFY_CRC) == FLASH_OK)
+                  {
+                      // Read timestamp
+                      memset(pStrFromMem, 0, sizeof(pStrFromMem));
+                      Flash_ReadStringFromMem(pStrFromMem, sizeof(pStrFromMem), FLASH_VASR_START_ADDR - FLASH_USER_START_ADDR);
+                      Flash_JumpToApp(FLASH_FW_START_ADDR);
+                  }
+              }
+          }
+          countToStart = 0;
+      }
+      else
+      {
+          countToStart++;
+          if (countToStart % 20 == 0)
+          {
+              HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+          }
+      }
+      HAL_Delay(10);
 
-    /* USER CODE BEGIN 3 */
+    /* USER CODE END WHILE */
   }
-  /* USER CODE END 3 */
 }
 
 /**
